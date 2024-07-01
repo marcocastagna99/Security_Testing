@@ -1,8 +1,8 @@
 from .openvas_client import OpenVASClient
 
 class ScanService:
-    def __init__(self, host, port, username, password):
-        self.openvas_client = OpenVASClient(host, port, username, password)
+    def __init__(self, host, port, username, password, cafile=None):
+        self.openvas_client = OpenVASClient(host, port, username, password, cafile)
         self.openvas_client.connect()
 
     def perform_scan(self, scan_name, targets):
