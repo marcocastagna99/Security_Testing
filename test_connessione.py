@@ -1,14 +1,22 @@
-import gvm
-from gvm.protocols.latest import Gmp
-from gvm.transforms import EtreeTransform
-from gvm.xml import pretty_print
+import ssl
+import socket
 
-connection =gvm.connections.TLSConnection(hostname='localhost', port=9390)
-gmp = Gmp(connection)
-gmp.authenticate('admin', 'admin')
+hostname = 'localhost'
+port = 9390
 
-# Retrieve current GMP version
-version = gmp.get_version()
+# Creazione di un contesto SSL
+context = ssl.create_default_context()
+context.check_hostname = False
+context.verify_mode = ssl.CERT_NONE  # Disabilita la verifica del certificato (solo per test)
 
-# Prints the XML in beautiful form
-pretty_print(version)
+try:
+    with socket.create_connection((hostname, port)) as sock:
+        with context.wrap_socket(sock, server_hostname=hostname) as ssock:
+            print("TLS version:", ssock.version())
+            # Esegui altre operazioni con la connessione ssock se necessario
+except ssl.SSLError as e:
+    print("SSL Error:", e)
+except socket.error as e:
+    print("Socket Error:", e)
+except Exception as e:
+    print("An unexpected error occurred:", e)
