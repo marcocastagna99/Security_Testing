@@ -1,65 +1,58 @@
+import sqlite3
+from datetime import datetime
+
 class ScanService:
-    def __init__(self, openvas_client):
+    def __init__(self, openvas_client, db_path):
         self.openvas_client = openvas_client
-        self.CVE_SCANNER_ID = "6acd0832-df90-11e4-b9d5-28d24461215b"
-        self.config_id = 'daba56c8-73ec-11df-a475-002264764cea'
+        self.db_path = db_path
 
     def perform_scan(self, scan_name, targets):
-        result_details = []
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS scans (
+                task_id TEXT PRIMARY KEY,
+                scan_name TEXT,
+                targets TEXT,
+                status TEXT,
+                result TEXT,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        conn.commit()
+
         for target in targets:
-            try:
-                print(f"Creating target for: {target}")
-                target_id = self.openvas_client.create_target(target)
-                print(f"Created target with ID: {target_id}")
+            target_id = self.openvas_client.create_target(target)
+            task_id = self.openvas_client.create_task(scan_name, config_id="daba56c8-73ec-11df-a475-002264764cea", target_id=target_id, scanner_id="08b69003-5fc2-4037-a479-93b440211c73")  # Default config_id and scanner_id
+            self.openvas_client.start_task(task_id)
 
-                print(f"Creating task with target ID: {target_id}")
-                task_id = self.openvas_client.create_task(scan_name, self.config_id, target_id, scanner_id=self.CVE_SCANNER_ID)
-                print(f"Created task with ID: {task_id}")
+            self.openvas_client.wait_for_task_completion(task_id)
+            results = self.openvas_client.get_task_results(task_id)
 
-                print(f"Starting task with ID: {task_id}")
-                self.openvas_client.start_task(task_id)
-                print(f"Task {task_id} started successfully")
+            result_details = results
+            result_summary = self.summarize_results(results)
 
-                print(f"Getting results for task ID: {task_id}")
-                results = self.openvas_client.get_task_results(task_id)
-                print(f"Results received: {results}")
+            cursor.execute('''
+                INSERT INTO scans (task_id, scan_name, targets, status, result) VALUES (?, ?, ?, ?, ?)
+            ''', (task_id, scan_name, ",".join(targets), 'Completed', result_details))
+            conn.commit()
 
-                for result in results:
-                    result_details.append({
-                        "endpoint": result['endpoint'],
-                        "cve": result['cve'],
-                        "score": result['score'],
-                        "av": result['av'],
-                        "ac": result['ac'],
-                        "pr": result['pr'],
-                        "ui": result['ui'],
-                        "s": result['s'],
-                        "c": result['c'],
-                        "i": result['i'],
-                        "a": result['a']
-                    })
-            except Exception as e:
-                print(f"Failed to perform scan for target {target}: {e}")
-                # Optionally handle the exception or re-raise it as needed
+        conn.close()
 
-        return result_details
-
-    def summarize_results(self, result_details):
+    def summarize_results(self, results):
         summary = []
-
-        for detail in result_details:
+        for result in results:
             summary.append({
-                "endpoint": detail['endpoint'],
-                "cve": detail['cve'],
-                "score": detail['score'],
-                "av": detail['av'],
-                "ac": detail['ac'],
-                "pr": detail['pr'],
-                "ui": detail['ui'],
-                "s": detail['s'],
-                "c": detail['c'],
-                "i": detail['i'],
-                "a": detail['a']
+                "endpoint": result['endpoint'],
+                "cve": result['cve'],
+                "score": result['score'],
+                "av": result['av'],
+                "ac": result['ac'],
+                "pr": result['pr'],
+                "ui": result['ui'],
+                "s": result['s'],
+                "c": result['c'],
+                "i": result['i'],
+                "a": result['a']
             })
-
         return summary

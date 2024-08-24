@@ -1,36 +1,46 @@
 from flask import Flask, request, jsonify
 import threading
 import logging
+import sqlite3
+from datetime import datetime
 from my_library.scan_service import ScanService
 from my_library.openvas_client import OpenVASClient
 
 app = Flask(__name__)
 
-# Configuration for OpenVAS
+# Configurazione per OpenVAS
 OPENVAS_HOST = 'localhost'
 OPENVAS_PORT = 9390
 OPENVAS_USERNAME = 'admin'
 OPENVAS_PASSWORD = 'admin'
 
-# Initialize the OpenVAS client
+# Percorso del database
+DB_PATH = 'scans.db'
+
+# Inizializzazione del client OpenVAS
 openvas_client = OpenVASClient(OPENVAS_HOST, OPENVAS_PORT, OPENVAS_USERNAME, OPENVAS_PASSWORD)
-openvas_client.connect()  # Assicura che il client sia connesso e autenticato
+openvas_client.connect()
 
-# Initialize the scan service with OpenVAS client
-scan_service = ScanService(openvas_client)
+# Inizializzazione del servizio di scansione con il client OpenVAS
+scan_service = ScanService(openvas_client, DB_PATH)
 
-# Background thread to perform the scan and emit progress updates
+# Funzione per ottenere la connessione al database
+def get_db_connection():
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+# Funzione di background per eseguire la scansione
 def perform_scan_background(scan_name, targets):
     try:
-        openvas_client.ensure_authenticated()  # Assicura che la sessione sia valida prima di eseguire la scansione
-        result_details = scan_service.perform_scan(scan_name, targets)
-        result_summary = scan_service.summarize_results(result_details)
-        # Store or log the result_summary as needed
-        print(result_summary)  # For debugging purposes
+        logging.info(f"Starting scan: {scan_name} for targets: {targets}")
+        openvas_client.ensure_authenticated()
+        scan_service.perform_scan(scan_name, targets)
+        logging.info(f"Scan completed: {scan_name}")
     except Exception as e:
-        print(f"Failed to perform scan: {e}")
+        logging.error(f"Failed to perform scan: {e}")
 
-# Endpoint to trigger a new scan
+# Endpoint per avviare una nuova scansione
 @app.route('/trigger_scan', methods=['POST'])
 def trigger_scan():
     data = request.json
@@ -41,18 +51,33 @@ def trigger_scan():
     if not scan_name or not targets:
         return jsonify({"error": "Missing scan_name or targets in request body"}), 400
 
-    # Start scan in a background thread
     scan_thread = threading.Thread(target=perform_scan_background, args=(scan_name, targets))
     scan_thread.start()
 
-    return jsonify({"message": "Scan started"}), 202  # Return immediate response
+    return jsonify({"message": "Scan started"}), 202
 
-# Endpoint to check scan status (example implementation)
-@app.route('/scan_status', methods=['GET'])
-def scan_status():
-    # Implement logic to retrieve the current scan status
-    # Return the current scan status
-    return jsonify({"status": "in progress"})  # Example status
+# Endpoint per controllare lo stato della scansione
+@app.route('/scan_status/<task_id>', methods=['GET'])
+def scan_status(task_id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute("SELECT scan_name, targets, status, result FROM scans WHERE task_id = ?", (task_id,))
+    row = cursor.fetchone()
+    conn.close()
+
+    if row:
+        scan_name, targets, status, result = row
+        result_summary = scan_service.summarize_results(result)
+        return jsonify({
+            "scan_name": scan_name,
+            "targets": targets.split(","),
+            "result_details": result,
+            "result_summary": result_summary
+        })
+    else:
+        return jsonify({"error": "Task ID not found"}), 404
 
 if __name__ == '__main__':
+    logging.basicConfig(level=logging.INFO)
     app.run(debug=True, host='0.0.0.0', port=5000)
