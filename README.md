@@ -1,6 +1,10 @@
 container da testare per il mio scan
 
-docker run --rm -it -p 80:80 vulnerables/web-dvwa
+controllare sempre ip del container, e eliminare il target id ogni volta se ripeto la scanansione
+
+docker run --rm -it -p 8080:80 vulnerables/web-dvwa
+
+
 docker run --rm -p 3000:3000 bkimminich/juice-shop
 docker run -d -p 443:443 -p 9390:9390 -p 80:80 --name openvas securecompliance/gvm:11.0.1-r3
 

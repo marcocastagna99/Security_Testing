@@ -162,27 +162,58 @@ class OpenVASClient:
             response = self.gmp.get_results(task_id=task_id)
 
             # Print for verifying the type and content of the response
-            print(f"Response type: {type(response)}")
-            print(f"Response content: {response}")
+            # print(f"Response type: {type(response)}")
+            # print(f"Response content: {response}")
 
             # Parse XML response
             root = ET.fromstring(response)
             
             results = []
             for result in root.findall('.//result'):
+                host = result.find('.//host')
                 nvt = result.find('.//nvt')
+                severity = result.find('.//severity')
+                cvss_vector = result.find('.//cvss')
+                
+                # Extract endpoint and CVE information
+                endpoint = host.text if host is not None else 'Unknown'
+                cve = nvt.find('.//cve').text if nvt is not None and nvt.find('.//cve') is not None else ''
+                score = float(severity.text) if severity is not None else 0.0
+
+                # Extract CVSS vector information
+                av = 'N'
+                ac = 'L'
+                pr = 'N'
+                ui = 'N'
+                s = 'U'
+                c = 'H'
+                i = 'H'
+                a = 'N'
+                
+                if cvss_vector is not None and cvss_vector.text:
+                    cvss_parts = cvss_vector.text.split('/')
+                    vector_parts = {part.split(':')[0]: part.split(':')[1] for part in cvss_parts[1:]}
+                    av = vector_parts.get('AV', av)
+                    ac = vector_parts.get('AC', ac)
+                    pr = vector_parts.get('PR', pr)
+                    ui = vector_parts.get('UI', ui)
+                    s = vector_parts.get('S', s)
+                    c = vector_parts.get('C', c)
+                    i = vector_parts.get('I', i)
+                    a = vector_parts.get('A', a)
+                
                 results.append({
-                    'endpoint': result.find('.//host').text,
-                    'cve': nvt.find('.//cve').text if nvt is not None and nvt.find('.//cve') is not None else '',
-                    'score': float(result.find('.//severity').text) if result.find('.//severity') is not None else 0,
-                    'av': 'N',  # Placeholder, update with actual data
-                    'ac': 'L',  # Placeholder, update with actual data
-                    'pr': 'N',  # Placeholder, update with actual data
-                    'ui': 'N',  # Placeholder, update with actual data
-                    's': 'U',  # Placeholder, update with actual data
-                    'c': 'H',  # Placeholder, update with actual data
-                    'i': 'H',  # Placeholder, update with actual data
-                    'a': 'N'   # Placeholder, update with actual data
+                    'endpoint': endpoint,
+                    'cve': cve,
+                    'score': score,
+                    'av': av,
+                    'ac': ac,
+                    'pr': pr,
+                    'ui': ui,
+                    's': s,
+                    'c': c,
+                    'i': i,
+                    'a': a
                 })
             return results
         except GvmError as e:

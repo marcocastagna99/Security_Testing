@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, json, request, jsonify
 import threading
 import logging
 import sqlite3
@@ -56,7 +56,6 @@ def trigger_scan():
 
     return jsonify({"message": "Scan started"}), 202
 
-# Endpoint per controllare lo stato della scansione
 @app.route('/scan_status/<task_id>', methods=['GET'])
 def scan_status(task_id):
     conn = get_db_connection()
@@ -68,11 +67,24 @@ def scan_status(task_id):
 
     if row:
         scan_name, targets, status, result = row
-        result_summary = scan_service.summarize_results(result)
+        
+        # Se il risultato è None, significa che la scansione non è ancora completata
+        if result is None:
+            return jsonify({
+                "scan_name": scan_name,
+                "targets": targets.split(","),
+                "status": status,
+                "message": "Scan in progress. Results are not yet available."
+            })
+
+        # Se il risultato è disponibile, lo riassumiamo
+        result_details = json.loads(result)  # Deserializza il risultato dal JSON
+        result_summary = scan_service.summarize_results(result_details)
         return jsonify({
             "scan_name": scan_name,
             "targets": targets.split(","),
-            "result_details": result,
+            "status": status,
+            "result_details": result_details,
             "result_summary": result_summary
         })
     else:
