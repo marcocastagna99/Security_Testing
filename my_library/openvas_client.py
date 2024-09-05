@@ -1,8 +1,10 @@
-import time
+from flask import json
 from gvm.connections import TLSConnection
 from gvm.protocols.latest import Gmp
 from gvm.errors import GvmError
 from xml.etree import ElementTree as ET
+import xmltodict
+
 
 class OpenVASClient:
     def __init__(self, host, port, username, password):
@@ -114,23 +116,6 @@ class OpenVASClient:
             print(f"Failed to start task {task_id}: {e}")
             raise
 
-    def wait_for_task_completion(self, task_id, timeout=3600, interval=30):
-        """Wait for the task to complete, checking the status periodically."""
-        self.ensure_authenticated()
-        end_time = time.time() + timeout
-        while time.time() < end_time:
-            status = self.get_task_status(task_id)
-            if status == 'Done':
-                print(f"Task {task_id} completed.")
-                return
-            elif status == 'New':
-                print(f"Task {task_id} status: New. Waiting for initialization...")
-            else:
-                progress = self.get_task_progress(task_id)
-                print(f"Task {task_id} status: {status}. Progress: {progress}")
-            time.sleep(interval)
-        raise TimeoutError(f"Task {task_id} did not complete within the timeout period.")
-
     def get_task_status(self, task_id):
         """Retrieve the current status of the task."""
         try:
@@ -142,6 +127,7 @@ class OpenVASClient:
         except Exception as e:
             print(f"Error retrieving task status for {task_id}: {e}")
             raise
+
 
     def get_task_progress(self, task_id):
         """Retrieve the progress information of the task."""
@@ -156,69 +142,179 @@ class OpenVASClient:
             raise
 
 
-    def get_task_results(self, task_id):
+    def get_task_result(self, task_id):
+        # Ottiene i risultati grezzi usando l'API RESTful
+        raw_results = self.get_raw_task_result(task_id)
+        
+        # Processa i risultati grezzi e ritorna i dettagli formattati e il sommario
+        result_details, result_summary = self.process_results(raw_results)
+        
+        return result_details, result_summary
+
+    def get_raw_task_result(self, task_id):
         try:
+            # Assicura che l'utente sia autenticato prima di fare la richiesta
             self.ensure_authenticated()
-            response = self.gmp.get_results(task_id=task_id)
-
-            # Print for verifying the type and content of the response
-            # print(f"Response type: {type(response)}")
-            # print(f"Response content: {response}")
-
-            # Parse XML response
-            root = ET.fromstring(response)
             
-            results = []
-            for result in root.findall('.//result'):
-                host = result.find('.//host')
-                nvt = result.find('.//nvt')
-                severity = result.find('.//severity')
-                cvss_vector = result.find('.//cvss')
+            # Effettua la richiesta all'API per ottenere i risultati del task
+            response = self.gmp.get_results(task_id=task_id)
+            
+            # Scrivi la risposta completa su un file per il debug
+            with open(f"task_{task_id}_raw_result.xml", "w") as file:
+                file.write(response)
+            
+            # Controlla se la risposta è una stringa XML
+            if isinstance(response, str):
+                # Il contenuto della risposta è già in formato XML
+                xml_content = response
                 
-                # Extract endpoint and CVE information
-                endpoint = host.text if host is not None else 'Unknown'
-                cve = nvt.find('.//cve').text if nvt is not None and nvt.find('.//cve') is not None else ''
-                score = float(severity.text) if severity is not None else 0.0
+                # Converti il contenuto XML in un dizionario Python (usa xmltodict)
+                try:
+                    result_data = xmltodict.parse(xml_content)
+                except Exception as e:
+                    raise Exception(f"Failed to parse XML content: {str(e)}")
+                
+                # Verifica la struttura dei dati risultanti
+                if 'get_results_response' in result_data and 'result' in result_data['get_results_response']:
+                    return result_data
+                else:
+                    raise Exception("Unexpected structure in the XML response")
+            else:
+                raise Exception("Unexpected response format: expected XML string")
 
-                # Extract CVSS vector information
-                av = 'N'
-                ac = 'L'
-                pr = 'N'
-                ui = 'N'
-                s = 'U'
-                c = 'H'
-                i = 'H'
-                a = 'N'
-                
-                if cvss_vector is not None and cvss_vector.text:
-                    cvss_parts = cvss_vector.text.split('/')
-                    vector_parts = {part.split(':')[0]: part.split(':')[1] for part in cvss_parts[1:]}
-                    av = vector_parts.get('AV', av)
-                    ac = vector_parts.get('AC', ac)
-                    pr = vector_parts.get('PR', pr)
-                    ui = vector_parts.get('UI', ui)
-                    s = vector_parts.get('S', s)
-                    c = vector_parts.get('C', c)
-                    i = vector_parts.get('I', i)
-                    a = vector_parts.get('A', a)
-                
-                results.append({
+        except Exception as e:
+            # Gestisci eventuali eccezioni
+            raise Exception(f"An error occurred while fetching results for task {task_id}: {str(e)}")
+
+    def process_results(self, raw_results):
+        result_details = []
+        result_summary = []
+
+        try:
+            # Estrai la lista dei risultati dal dizionario
+            results_list = raw_results['get_results_response']['result']
+        except KeyError as e:
+            raise Exception(f"KeyError: {e} in the raw_results structure")
+
+        for result in results_list:
+            try:
+                endpoint = result['host'].get('#text', 'Unknown')
+                tags = result['nvt'].get('tags', '')
+
+                # Estrai CVSS base vector se presente
+                cve = tags.split('cvss_base_vector=')[1] if 'cvss_base_vector=' in tags else 'N/A'
+
+                # Assicurati che il CVSS base score sia un numero
+                try:
+                    score = float(result['nvt'].get('cvss_base', 0.0))
+                except ValueError:
+                    score = 0.0
+
+                # Aggiungi i dettagli del risultato
+                result_details.append({
                     'endpoint': endpoint,
                     'cve': cve,
                     'score': score,
-                    'av': av,
-                    'ac': ac,
-                    'pr': pr,
-                    'ui': ui,
-                    's': s,
-                    'c': c,
-                    'i': i,
-                    'a': a
+                    'cvss': cve
                 })
-            return results
-        except GvmError as e:
-            print(f"Failed to get task results for {task_id}: {e}")
-            raise
-        except Exception as e:
-            print(f"Unexpected error while parsing task results: {e}")
-            raise GvmError(f"Failed to parse task results for {task_id}")
+
+                # Converte il formato CVSS per il sommario
+                cvss_fields = [field for field in cve.split('/') if field]  # Filtra campi vuoti
+
+                def safe_get(index, default='N/A'):
+                    return cvss_fields[index].split(':')[1] if len(cvss_fields) > index else default
+
+                cvss_summary = {
+                    'endpoint': endpoint,
+                    'cve': cve,
+                    'score': score,
+                    'av': safe_get(0),
+                    'ac': safe_get(1),
+                    'pr': safe_get(2),
+                    'ui': safe_get(3),
+                    's': safe_get(4),
+                    'c': safe_get(5),
+                    'i': safe_get(6),
+                    'a': safe_get(7)
+                }
+                result_summary.append(cvss_summary)
+
+            except KeyError as e:
+                print(f"KeyError processing result: {e}")
+                result_summary.append({
+                    'endpoint': 'Unknown',
+                    'cve': 'N/A',
+                    'score': 0.0,
+                    'av': 'N/A',
+                    'ac': 'N/A',
+                    'pr': 'N/A',
+                    'ui': 'N/A',
+                    's': 'N/A',
+                    'c': 'N/A',
+                    'i': 'N/A',
+                    'a': 'N/A'
+                })
+            except Exception as e:
+                print(f"Error processing CVSS data: {e}")
+                result_summary.append({
+                    'endpoint': 'Unknown',
+                    'cve': 'N/A',
+                    'score': 0.0,
+                    'av': 'N/A',
+                    'ac': 'N/A',
+                    'pr': 'N/A',
+                    'ui': 'N/A',
+                    's': 'N/A',
+                    'c': 'N/A',
+                    'i': 'N/A',
+                    'a': 'N/A'
+                })
+
+
+        return result_details, result_summary
+        
+
+
+"""
+    def delete_target(self, target_id):
+            
+            #Elimina un target da OpenVAS e tutti i task associati.
+            
+            #:param target_id: ID del target da eliminare.
+            
+            try:
+                # Assicurati di essere autenticato
+                self.ensure_authenticated()
+
+                # Recupera tutti i task e filtra quelli associati al target
+                response = self.gmp.get_tasks()
+                if isinstance(response, str):
+                    root = ET.fromstring(response)
+                else:
+                    root = ET.ElementTree(response).getroot()
+                
+                all_tasks = []
+                for task in root.findall('.//task'):
+                    task_id = task.get('id')
+                    task_target_id = task.find('.//target').get('id')
+                    all_tasks.append({'id': task_id, 'target': task_target_id})
+
+                # Filtra i task associati al target specificato
+                tasks_to_delete = [task for task in all_tasks if task['target'] == target_id]
+
+                # Elimina i task associati al target
+                for task in tasks_to_delete:
+                    self.gmp.delete_task(task['id'])
+                    print(f"Task {task['id']} eliminato con successo.")
+
+                # Elimina il target
+                self.gmp.delete_target(target_id)
+                print(f"Target {target_id} eliminato con successo.")
+
+            except GvmError as e:
+                print(f"Errore durante l'eliminazione del target: {e}")
+                raise
+            except Exception as e:
+                print(f"Errore imprevisto durante l'eliminazione del target: {e}")
+                raise
+                """

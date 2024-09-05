@@ -43,10 +43,10 @@ try:
     # Debug: stampare gli ID dei target trovati
     print(f'Target IDs trovati: {target_ids}')
 
-    # Eliminare ogni target
+    """# Eliminare ogni target
     for target_id in target_ids:
         gmp.delete_target(target_id)
-        print(f'Target {target_id} eliminato')
+        print(f'Target {target_id} eliminato') """
 
 except GvmError as e:
     print(f'Errore: {e}')

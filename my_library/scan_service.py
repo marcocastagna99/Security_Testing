@@ -1,5 +1,7 @@
 import sqlite3
 from datetime import datetime
+import time
+import logging
 
 from flask import json
 
@@ -19,13 +21,17 @@ class ScanService:
                 targets TEXT,
                 status TEXT,
                 result TEXT,
+                result_summary TEXT,
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         ''')
         conn.commit()
 
+        task_ids = []
+        
         for target in targets:
             target_id = self.openvas_client.create_target(target)
+            #scan list: cve: 6acd0832-df90-11e4-b9d5-28d24461215b     openvas-default: 08b69003-5fc2-4037-a479-93b440211c73
             task_id = self.openvas_client.create_task(scan_name, config_id="daba56c8-73ec-11df-a475-002264764cea", target_id=target_id, scanner_id="08b69003-5fc2-4037-a479-93b440211c73")
 
             # Inserimento nel database con stato "In Progress"
@@ -33,61 +39,67 @@ class ScanService:
                 INSERT INTO scans (task_id, scan_name, targets, status) VALUES (?, ?, ?, ?)
             ''', (task_id, scan_name, target, 'In Progress'))
             conn.commit()
+            
+            task_ids.append(task_id)
 
             # Avvia la scansione
             self.openvas_client.start_task(task_id)
 
-            # Aggiornamento dello stato durante la scansione
-            self.openvas_client.wait_for_task_completion(task_id)
-
+        conn.close()
+        
+        # Restituisce tutti i task_id creati
+        return task_ids
+    
+    def monitor_scan(self, task_id):
+        try:
+            logging.info(f"Monitoring scan with task ID: {task_id}")
+            self.openvas_client.ensure_authenticated()
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            # Aspetta che il task venga completato
+            self.wait_for_task_completion(task_id, cursor, conn)
+            
             # Recupera i risultati della scansione
-            results = self.openvas_client.get_task_results(task_id)
-            result_details = json.dumps(results)  # Serializza i risultati in JSON
-            result_summary = self.summarize_results(results)
-
+            result_details, result_summary = self.openvas_client.get_task_result(task_id)
+            
+            # Serializza i risultati in formato JSON
+            result_details_json = json.dumps(result_details)
+            result_summary_json = json.dumps(result_summary)
+            
             # Aggiorna il record con lo stato "Completed" e i risultati
             cursor.execute('''
-                UPDATE scans SET status = ?, result = ? WHERE task_id = ?
-            ''', ('Completed', result_details, task_id))
+                UPDATE scans SET status = ?, result = ?, result_summary = ? WHERE task_id = ?
+            ''', ('Completed', result_details_json, result_summary_json, task_id))
+            
+            conn.commit()
+            conn.close()
+            
+            logging.info(f"Scan completed with task ID: {task_id}")
+        except Exception as e:
+            logging.error(f"Failed to monitor scan with task ID {task_id}: {e}")
+
+    def wait_for_task_completion(self, task_id, cursor, conn, timeout=3600, interval=30):
+        """Wait for the task to complete, checking the status periodically."""
+        self.openvas_client.ensure_authenticated()
+        end_time = time.time() + timeout
+        while time.time() < end_time:
+            status = self.openvas_client.get_task_status(task_id)
+            if status == 'Done':
+                print(f"Task {task_id} completed.")
+                return
+            elif status == 'New':
+                print(f"Task {task_id} status: New. Waiting for initialization...")
+            else:
+                progress = self.openvas_client.get_task_progress(task_id)
+                status_message=f"Task {task_id} status: {status}. Progress: {progress} %"
+                print(status_message)
+            cursor.execute('''
+                UPDATE scans 
+                SET status = ? 
+                WHERE task_id = ?
+            ''', (f"{status}. Progress: {progress} %", task_id))
             conn.commit()
 
-        conn.close()
-
-    def summarize_results(self, results):
-        summary = []
-        endpoint_summary = {}
-
-        for result in results:
-            endpoint = result['endpoint']
-            if endpoint not in endpoint_summary:
-                endpoint_summary[endpoint] = {
-                    'endpoint': endpoint,
-                    'cve': result['cve'],
-                    'score': result['score'],
-                    'av': result['av'],
-                    'ac': result['ac'],
-                    'pr': result['pr'],
-                    'ui': result['ui'],
-                    's': result['s'],
-                    'c': result['c'],
-                    'i': result['i'],
-                    'a': result['a']
-                }
-            else:
-                existing = endpoint_summary[endpoint]
-                if result['score'] > existing['score']:
-                    existing.update({
-                        'cve': result['cve'],
-                        'score': result['score'],
-                        'av': result['av'],
-                        'ac': result['ac'],
-                        'pr': result['pr'],
-                        'ui': result['ui'],
-                        's': result['s'],
-                        'c': result['c'],
-                        'i': result['i'],
-                        'a': result['a']
-                    })
-
-        summary = list(endpoint_summary.values())
-        return summary
+            time.sleep(interval)
+        raise TimeoutError(f"Task {task_id} did not complete within the timeout period.")

@@ -6,6 +6,7 @@ from datetime import datetime
 from my_library.scan_service import ScanService
 from my_library.openvas_client import OpenVASClient
 
+
 app = Flask(__name__)
 
 # Configurazione per OpenVAS
@@ -30,17 +31,28 @@ def get_db_connection():
     conn.row_factory = sqlite3.Row
     return conn
 
-# Funzione di background per eseguire la scansione
-def perform_scan_background(scan_name, targets):
+def perform_scan_background(scan_name, targets, result_container):
     try:
         logging.info(f"Starting scan: {scan_name} for targets: {targets}")
-        openvas_client.ensure_authenticated()
-        scan_service.perform_scan(scan_name, targets)
-        logging.info(f"Scan completed: {scan_name}")
+        scan_service.openvas_client.ensure_authenticated()
+        
+        # Crea la scansione e ottieni i task_id
+        task_ids = scan_service.perform_scan(scan_name, targets)
+        
+        # Memorizza i task_id nel contenitore di risultati
+        result_container['task_ids'] = task_ids
+        
+        # Avvia il monitoraggio per ogni task_id
+        for task_id in task_ids:
+            monitoring_thread = threading.Thread(target=scan_service.monitor_scan, args=(task_id,))
+            monitoring_thread.start()
+        
+        logging.info(f"Scan started with task IDs: {task_ids}")
     except Exception as e:
         logging.error(f"Failed to perform scan: {e}")
+        result_container['task_ids'] = None
 
-# Endpoint per avviare una nuova scansione
+#post to trigger the scan
 @app.route('/trigger_scan', methods=['POST'])
 def trigger_scan():
     data = request.json
@@ -51,22 +63,34 @@ def trigger_scan():
     if not scan_name or not targets:
         return jsonify({"error": "Missing scan_name or targets in request body"}), 400
 
-    scan_thread = threading.Thread(target=perform_scan_background, args=(scan_name, targets))
+    # Usando un threading.Event per sincronizzare il risultato dei task_id
+    task_id_event = threading.Event()
+    task_id_container = {'task_ids': None}
+    
+    def perform_scan_with_event(scan_name, targets):
+        perform_scan_background(scan_name, targets, task_id_container)
+        task_id_event.set()  # Segnala che i task_id sono pronti
+
+    scan_thread = threading.Thread(target=perform_scan_with_event, args=(scan_name, targets))
     scan_thread.start()
+    
+    # Attendere che i task_id siano disponibili
+    task_id_event.wait()
+    
+    return jsonify({"message": "Scan started", "task_ids": task_id_container['task_ids']}), 202
 
-    return jsonify({"message": "Scan started"}), 202
-
+#get to obtain information about the scan status
 @app.route('/scan_status/<task_id>', methods=['GET'])
 def scan_status(task_id):
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    cursor.execute("SELECT scan_name, targets, status, result FROM scans WHERE task_id = ?", (task_id,))
+    cursor.execute("SELECT scan_name, targets, status, result, result_summary FROM scans WHERE task_id = ?", (task_id,))
     row = cursor.fetchone()
     conn.close()
 
     if row:
-        scan_name, targets, status, result = row
+        scan_name, targets, status, result, result_summary = row
         
         # Se il risultato è None, significa che la scansione non è ancora completata
         if result is None:
@@ -79,7 +103,8 @@ def scan_status(task_id):
 
         # Se il risultato è disponibile, lo riassumiamo
         result_details = json.loads(result)  # Deserializza il risultato dal JSON
-        result_summary = scan_service.summarize_results(result_details)
+        result_summary = json.loads(result_summary)
+        #result_summary = scan_service.summarize_results(result_details)
         return jsonify({
             "scan_name": scan_name,
             "targets": targets.split(","),
