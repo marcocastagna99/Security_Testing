@@ -20,13 +20,10 @@ curl -X POST http://localhost:5000/trigger_scan -H "Content-Type: application/js
   "targets": ["172.17.0.3"]
 }'
 
-curl -X POST \
-  http://172.17.0.1:5000/trigger_scan \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "scan_name": "MyScan",
-    "targets": ["172.17.0.3"]
-  }'
+curl -X POST http://127.0.0.1:5000/trigger_scan -H "Content-Type: application/json" -d '{
+  "scan_name": "DVWA Scan",
+  "targets": ["172.17.0.3"]
+}'
 
 recupero i resultati
 Sostituisci mock_task_id con l'ID del task reale che ottieni dalla risposta del primo comando

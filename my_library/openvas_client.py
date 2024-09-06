@@ -1,3 +1,4 @@
+import re
 from flask import json
 from gvm.connections import TLSConnection
 from gvm.protocols.latest import Gmp
@@ -147,7 +148,7 @@ class OpenVASClient:
         raw_results = self.get_raw_task_result(task_id)
         
         # Processa i risultati grezzi e ritorna i dettagli formattati e il sommario
-        result_details, result_summary = self.process_results(raw_results)
+        result_details, result_summary = self.parse_openvas_results(raw_results)
         
         return result_details, result_summary
 
@@ -176,7 +177,7 @@ class OpenVASClient:
                 
                 # Verifica la struttura dei dati risultanti
                 if 'get_results_response' in result_data and 'result' in result_data['get_results_response']:
-                    return result_data
+                    return xml_content  # Ritorna il contenuto XML per il parsing successivo
                 else:
                     raise Exception("Unexpected structure in the XML response")
             else:
@@ -186,94 +187,68 @@ class OpenVASClient:
             # Gestisci eventuali eccezioni
             raise Exception(f"An error occurred while fetching results for task {task_id}: {str(e)}")
 
-    def process_results(self, raw_results):
+    def parse_openvas_results(self, xml_data):
+        root = ET.fromstring(xml_data)
         result_details = []
         result_summary = []
+        seen_ids = set()  # Set per tenere traccia degli ID già visti
 
-        try:
-            # Estrai la lista dei risultati dal dizionario
-            results_list = raw_results['get_results_response']['result']
-        except KeyError as e:
-            raise Exception(f"KeyError: {e} in the raw_results structure")
+        for result in root.findall(".//result"):
+            result_id = result.get('id')
+            if result_id in seen_ids:
+                continue  # Salta i risultati già processati
+            seen_ids.add(result_id)
 
-        for result in results_list:
-            try:
-                endpoint = result['host'].get('#text', 'Unknown')
-                tags = result['nvt'].get('tags', '')
+            name = result.findtext('name')
+            host = result.findtext('host')
+            port = result.findtext('port')
+            severity = result.findtext('severity')
+            description = result.findtext('description')
+            cvss_base = result.findtext(".//cvss_base")
+            cve = result.findtext(".//cve")
 
-                # Estrai CVSS base vector se presente
-                cve = tags.split('cvss_base_vector=')[1] if 'cvss_base_vector=' in tags else 'N/A'
+            # Parsing dettagli result_details
+            detail = {
+                'id': result_id,
+                'name': name,
+                'host': host,
+                'port': port,
+                'severity': severity,
+                'description': description,
+                'cvss_base': cvss_base,
+                'cve': cve
+            }
+            result_details.append(detail)
 
-                # Assicurati che il CVSS base score sia un numero
-                try:
-                    score = float(result['nvt'].get('cvss_base', 0.0))
-                except ValueError:
-                    score = 0.0
+            # Parsing result_summary
+            if cvss_base:
+                cvss_data = self.parse_cvss(cvss_base)
+                if cvss_data:
+                    summary = {
+                        "endpoint": f"{host}:{port}",
+                        "cve": cve,
+                        "score": float(severity) if severity else None,
+                        "av": cvss_data.get("av"),
+                        "ac": cvss_data.get("ac"),
+                        "pr": cvss_data.get("pr"),
+                        "ui": cvss_data.get("ui"),
+                        "s": cvss_data.get("s"),
+                        "c": cvss_data.get("c"),
+                        "i": cvss_data.get("i"),
+                        "a": cvss_data.get("a")
+                    }
+                    result_summary.append(summary)
 
-                # Aggiungi i dettagli del risultato
-                result_details.append({
-                    'endpoint': endpoint,
-                    'cve': cve,
-                    'score': score,
-                    'cvss': cve
-                })
-
-                # Converte il formato CVSS per il sommario
-                cvss_fields = [field for field in cve.split('/') if field]  # Filtra campi vuoti
-
-                def safe_get(index, default='N/A'):
-                    return cvss_fields[index].split(':')[1] if len(cvss_fields) > index else default
-
-                cvss_summary = {
-                    'endpoint': endpoint,
-                    'cve': cve,
-                    'score': score,
-                    'av': safe_get(0),
-                    'ac': safe_get(1),
-                    'pr': safe_get(2),
-                    'ui': safe_get(3),
-                    's': safe_get(4),
-                    'c': safe_get(5),
-                    'i': safe_get(6),
-                    'a': safe_get(7)
-                }
-                result_summary.append(cvss_summary)
-
-            except KeyError as e:
-                print(f"KeyError processing result: {e}")
-                result_summary.append({
-                    'endpoint': 'Unknown',
-                    'cve': 'N/A',
-                    'score': 0.0,
-                    'av': 'N/A',
-                    'ac': 'N/A',
-                    'pr': 'N/A',
-                    'ui': 'N/A',
-                    's': 'N/A',
-                    'c': 'N/A',
-                    'i': 'N/A',
-                    'a': 'N/A'
-                })
-            except Exception as e:
-                print(f"Error processing CVSS data: {e}")
-                result_summary.append({
-                    'endpoint': 'Unknown',
-                    'cve': 'N/A',
-                    'score': 0.0,
-                    'av': 'N/A',
-                    'ac': 'N/A',
-                    'pr': 'N/A',
-                    'ui': 'N/A',
-                    's': 'N/A',
-                    'c': 'N/A',
-                    'i': 'N/A',
-                    'a': 'N/A'
-                })
-
-
+        # Ritorna entrambe le liste dopo il ciclo
         return result_details, result_summary
-        
 
+    def parse_cvss(self, cvss_string):
+        # Pattern per estrarre i valori dalla stringa CVSS
+        pattern = r"CVSS:(?P<version>\d\.\d)/AV:(?P<av>[NAL])/AC:(?P<ac>[LHM])/PR:(?P<pr>[NLH])/UI:(?P<ui>[NAL])/S:(?P<s>[UC])/C:(?P<c>[LHM])/I:(?P<i>[LHM])/A:(?P<a>[LHM])"
+        match = re.match(pattern, cvss_string)
+        if match:
+            return match.groupdict()
+        return None
 
 """
     def delete_target(self, target_id):
