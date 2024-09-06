@@ -41,5 +41,14 @@ curl -X POST http://localhost:5000/trigger_scan -H "Content-Type: application/js
 aggiustare get task result !
 
 
+FORSE CON IL REPORT SI RIESCE MEGLIO
+
+TO DO (alla fine)
+scan_list (lista degli scanner)
+delete_target
+targets 
+come funzioni della libreria invece di file a parte, dare la possibilità tramite rest service di utilizzarli   (non richiesto)
+
+
 
 
