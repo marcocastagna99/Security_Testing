@@ -61,16 +61,17 @@ class ScanService:
             self.wait_for_task_completion(task_id, cursor, conn)
             
             # Recupera i risultati della scansione
-            result_details, result_summary = self.openvas_client.get_task_result(task_id)
+            result,result_summary= self.openvas_client.get_report_results(task_id)
             
             # Serializza i risultati in formato JSON
-            result_details_json = json.dumps(result_details)
-            result_summary_json = json.dumps(result_summary)
+            result = json.dumps(result)
+            result_summary = json.dumps(result_summary, indent=4)   
+        
             
             # Aggiorna il record con lo stato "Completed" e i risultati
             cursor.execute('''
                 UPDATE scans SET status = ?, result = ?, result_summary = ? WHERE task_id = ?
-            ''', ('Completed', result_details_json, result_summary_json, task_id))
+            ''', ('Completed', result, result_summary, task_id))
             
             conn.commit()
             conn.close()
@@ -103,3 +104,4 @@ class ScanService:
 
             time.sleep(interval)
         raise TimeoutError(f"Task {task_id} did not complete within the timeout period.")
+    

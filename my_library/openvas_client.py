@@ -142,154 +142,152 @@ class OpenVASClient:
             print(f"Error retrieving task progress for {task_id}: {e}")
             raise
 
-
-    def get_task_result(self, task_id):
-        # Ottiene i risultati grezzi usando l'API RESTful
-        raw_results = self.get_raw_task_result(task_id)
-        
-        # Processa i risultati grezzi e ritorna i dettagli formattati e il sommario
-        result_details, result_summary = self.parse_openvas_results(raw_results)
-        
-        return result_details, result_summary
-
-    def get_raw_task_result(self, task_id):
+    def get_report_results(self, task_id):
         try:
-            # Assicura che l'utente sia autenticato prima di fare la richiesta
-            self.ensure_authenticated()
-            
-            # Effettua la richiesta all'API per ottenere i risultati del task
-            response = self.gmp.get_results(task_id=task_id)
-            
-            # Scrivi la risposta completa su un file per il debug
-            with open(f"task_{task_id}_raw_result.xml", "w") as file:
-                file.write(response)
-            
-            # Controlla se la risposta è una stringa XML
-            if isinstance(response, str):
-                # Il contenuto della risposta è già in formato XML
-                xml_content = response
-                
-                # Converti il contenuto XML in un dizionario Python (usa xmltodict)
-                try:
-                    result_data = xmltodict.parse(xml_content)
-                except Exception as e:
-                    raise Exception(f"Failed to parse XML content: {str(e)}")
-                
-                # Verifica la struttura dei dati risultanti
-                if 'get_results_response' in result_data and 'result' in result_data['get_results_response']:
-                    return xml_content  # Ritorna il contenuto XML per il parsing successivo
-                else:
-                    raise Exception("Unexpected structure in the XML response")
-            else:
-                raise Exception("Unexpected response format: expected XML string")
-
+            report_id = self.get_report_id_by_task(task_id)
+            xml_data = self.get_report(report_id)
+            results = self.parse_report(xml_data)
+            results_summary = self.parse_result_summary(xml_data)
+            return results,results_summary
         except Exception as e:
-            # Gestisci eventuali eccezioni
-            raise Exception(f"An error occurred while fetching results for task {task_id}: {str(e)}")
+            raise Exception(f"Failed to monitor scan with task ID {task_id}: {str(e)}")
 
-    def parse_openvas_results(self, xml_data):
-        root = ET.fromstring(xml_data)
-        result_details = []
-        result_summary = []
-        seen_ids = set()  # Set per tenere traccia degli ID già visti
+    def get_report_id_by_task(self, task_id):
+        try:
+            # Ottenere i report in formato XML
+            reports = self.gmp.get_reports()
+          # print(f"Reports Data: {reports}")  # Debug line
+            
+            # Parsing dell'XML
+            root = ET.fromstring(reports)
+            
+            # Iterare sui report per trovare il task con l'ID specificato
+            for report in root.findall('.//report'):
+                task = report.find('.//task')
+                if task is not None and task.get('id') == task_id:
+                    report_id = report.get('id')
+                    #print(f"Matching report found: Report ID = {report_id} for Task ID = {task_id}")
+                    return report_id
+            
+            raise ValueError(f"No report found for task ID {task_id}")
+        
+        except Exception as e:
+            raise Exception(f"An error occurred while fetching report ID for task {task_id}: {str(e)}")
+        
+    def get_report(self, report_id):
+        try:
+            report = self.gmp.get_report(report_id=report_id)
+            
+            # Verifica se il report è una stringa XML o un oggetto diverso
+            if isinstance(report, str):
+                with open(f"report_{report_id}.xml", "w") as file:
+                    file.write(report)  # Scrivi il contenuto XML nel file
+            else:
+                raise ValueError(f"Unexpected report format: {type(report)}")
+            
+            return report
+        
+        except Exception as e:
+            raise Exception(f"An error occurred while fetching report {report_id}: {str(e)}")
 
+    def parse_report(self, xml_data):
+        try:
+            root = ET.fromstring(xml_data)
+            results = []
+            for result in root.findall(".//result"):
+                result_id = result.get('id')
+                name = result.findtext('name')
+                host = result.findtext('host')
+                port = result.findtext('port')
+                severity = result.findtext('severity')
+                description = result.findtext('description')
+                cvss_base = result.findtext(".//cvss_base")
+                cve = result.findtext(".//cve")
+
+                detail = {
+                    'id': result_id,
+                    'name': name,
+                    'host': host,
+                    'port': port,
+                    'severity': severity,
+                    'description': description,
+                    'cvss_base': cvss_base,
+                    'cve': cve
+                }
+                results.append(detail)
+
+            return results
+        except ET.ParseError as e:
+            raise Exception(f"An error occurred while parsing XML data: {str(e)}")
+        
+    def parse_result_summary(self, xml_content):
+        root = ET.fromstring(xml_content)
+        results = {}
+        
         for result in root.findall(".//result"):
-            result_id = result.get('id')
-            if result_id in seen_ids:
-                continue  # Salta i risultati già processati
-            seen_ids.add(result_id)
+            # Check and get 'host'
+            host_element = result.find("host")
+            host = host_element.text.strip().split("<")[0].strip() if host_element is not None else "Unknown"
+            
+            # Check and get 'port'
+            port_element = result.find("port")
+            port = port_element.text.strip() if port_element is not None else "Unknown"
+            endpoint = f"{host}:{port}"
+            
+            # Check and get 'cvss_base'
+            cvss_base_element = result.find(".//cvss_base")
+            cvss_base = cvss_base_element.text.strip() if cvss_base_element is not None else None
+            
+            # Get CVE references
+            cve_refs = [ref.get("id") for ref in result.findall(".//refs/ref[@type='cve']")]
 
-            name = result.findtext('name')
-            host = result.findtext('host')
-            port = result.findtext('port')
-            severity = result.findtext('severity')
-            description = result.findtext('description')
-            cvss_base = result.findtext(".//cvss_base")
-            cve = result.findtext(".//cve")
-
-            # Parsing dettagli result_details
-            detail = {
-                'id': result_id,
-                'name': name,
-                'host': host,
-                'port': port,
-                'severity': severity,
-                'description': description,
-                'cvss_base': cvss_base,
-                'cve': cve
-            }
-            result_details.append(detail)
-
-            # Parsing result_summary
+            # Check and get 'threat'
+            threat_element = result.find(".//threat")
+            threat = threat_element.text.strip() if threat_element is not None else "Unknown"
+            
+            # Check and get 'severity'
+            severity_element = result.find(".//severity")
+            severity = float(severity_element.text.strip()) if severity_element is not None else 0.0
+            
+            # Default CVSS vector components
+            av = ac = pr = ui = s = c = i = a = "N"
+            
             if cvss_base:
-                cvss_data = self.parse_cvss(cvss_base)
-                if cvss_data:
-                    summary = {
-                        "endpoint": f"{host}:{port}",
-                        "cve": cve,
-                        "score": float(severity) if severity else None,
-                        "av": cvss_data.get("av"),
-                        "ac": cvss_data.get("ac"),
-                        "pr": cvss_data.get("pr"),
-                        "ui": cvss_data.get("ui"),
-                        "s": cvss_data.get("s"),
-                        "c": cvss_data.get("c"),
-                        "i": cvss_data.get("i"),
-                        "a": cvss_data.get("a")
-                    }
-                    result_summary.append(summary)
-
-        # Ritorna entrambe le liste dopo il ciclo
-        return result_details, result_summary
-
-    def parse_cvss(self, cvss_string):
-        # Pattern per estrarre i valori dalla stringa CVSS
-        pattern = r"CVSS:(?P<version>\d\.\d)/AV:(?P<av>[NAL])/AC:(?P<ac>[LHM])/PR:(?P<pr>[NLH])/UI:(?P<ui>[NAL])/S:(?P<s>[UC])/C:(?P<c>[LHM])/I:(?P<i>[LHM])/A:(?P<a>[LHM])"
-        match = re.match(pattern, cvss_string)
-        if match:
-            return match.groupdict()
-        return None
-
-"""
-    def delete_target(self, target_id):
+                # Check and get 'cvss_base_vector'
+                cvss_base_vector_element = result.find(".//tags")
+                if cvss_base_vector_element is not None:
+                    cvss_base_vector = cvss_base_vector_element.text
+                    # Extract CVSS vector metrics
+                    if "AV:" in cvss_base_vector:
+                        av = cvss_base_vector.split("AV:")[1][0]
+                    if "AC:" in cvss_base_vector:
+                        ac = cvss_base_vector.split("AC:")[1][0]
+                    if "PR:" in cvss_base_vector:
+                        pr = cvss_base_vector.split("PR:")[1][0]
+                    if "UI:" in cvss_base_vector:
+                        ui = cvss_base_vector.split("UI:")[1][0]
+                    if "S:" in cvss_base_vector:
+                        s = cvss_base_vector.split("S:")[1][0]
+                    if "C:" in cvss_base_vector:
+                        c = cvss_base_vector.split("C:")[1][0]
+                    if "I:" in cvss_base_vector:
+                        i = cvss_base_vector.split("I:")[1][0]
+                    if "A:" in cvss_base_vector:
+                        a = cvss_base_vector.split("A:")[1][0]
             
-            #Elimina un target da OpenVAS e tutti i task associati.
-            
-            #:param target_id: ID del target da eliminare.
-            
-            try:
-                # Assicurati di essere autenticato
-                self.ensure_authenticated()
-
-                # Recupera tutti i task e filtra quelli associati al target
-                response = self.gmp.get_tasks()
-                if isinstance(response, str):
-                    root = ET.fromstring(response)
-                else:
-                    root = ET.ElementTree(response).getroot()
-                
-                all_tasks = []
-                for task in root.findall('.//task'):
-                    task_id = task.get('id')
-                    task_target_id = task.find('.//target').get('id')
-                    all_tasks.append({'id': task_id, 'target': task_target_id})
-
-                # Filtra i task associati al target specificato
-                tasks_to_delete = [task for task in all_tasks if task['target'] == target_id]
-
-                # Elimina i task associati al target
-                for task in tasks_to_delete:
-                    self.gmp.delete_task(task['id'])
-                    print(f"Task {task['id']} eliminato con successo.")
-
-                # Elimina il target
-                self.gmp.delete_target(target_id)
-                print(f"Target {target_id} eliminato con successo.")
-
-            except GvmError as e:
-                print(f"Errore durante l'eliminazione del target: {e}")
-                raise
-            except Exception as e:
-                print(f"Errore imprevisto durante l'eliminazione del target: {e}")
-                raise
-                """
+            if endpoint not in results:
+                results[endpoint] = {
+                    "endpoint": endpoint,
+                    "cve": cve_refs,
+                    "score": severity,
+                    "av": av,
+                    "ac": ac,
+                    "pr": pr,
+                    "ui": ui,
+                    "s": s,
+                    "c": c,
+                    "i": i,
+                    "a": a
+                }
+        
+        return results

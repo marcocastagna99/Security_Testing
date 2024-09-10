@@ -104,7 +104,7 @@ def scan_status(task_id):
         # Se il risultato è disponibile, lo riassumiamo
         result_details = json.loads(result)  # Deserializza il risultato dal JSON
         result_summary = json.loads(result_summary)
-        #result_summary = scan_service.summarize_results(result_details)
+
         return jsonify({
             "scan_name": scan_name,
             "targets": targets.split(","),
