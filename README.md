@@ -35,14 +35,14 @@ curl -X GET http://localhost:5000/scan_status/<task_id>
 
 
 se 2 task altrimenti solo task_id1
-curl -X GET "http://localhost:5000/scan_status/my_scan?task_id=task_id1&task_id=task_id2"
+curl -X GET "http://localhost:5000/scan_status/My_Scan?task_id=task_id1&task_id=task_id2"
 
 
 
 
 
 curl -X POST http://localhost:5000/trigger_scan -H "Content-Type: application/json" -d '{
-  "scan_name": "My Scan",
+  "scan_name": "My_Scan",
   "targets": ["172.17.0.3", "172.17.0.4"]
 }'
 

@@ -176,13 +176,13 @@ class OpenVASClient:
     def get_report(self, report_id):
         try:
             report = self.gmp.get_report(report_id=report_id)
-            
+            """
             # Verifica se il report è una stringa XML o un oggetto diverso
             if isinstance(report, str):
                 with open(f"report_{report_id}.xml", "w") as file:
                     file.write(report)  # Scrivi il contenuto XML nel file
             else:
-                raise ValueError(f"Unexpected report format: {type(report)}")
+                raise ValueError(f"Unexpected report format: {type(report)}")"""
             
             return report
         
