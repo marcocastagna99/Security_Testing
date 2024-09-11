@@ -21,15 +21,15 @@ try:
     targets_response = gmp.get_targets()
 
     # Debug: stampare la risposta XML originale
-    print("Risposta XML originale:")
-    print(targets_response)
+    #print("Risposta XML originale:")
+    #print(targets_response)
 
     # Analizzare la risposta XML
     targets_xml = etree.fromstring(targets_response.encode('utf-8'))
 
     # Debug: stampare la risposta XML ben formattata
-    print("\nRisposta XML formattata:")
-    print(etree.tostring(targets_xml, pretty_print=True).decode())
+    #print("\nRisposta XML formattata:")
+    #print(etree.tostring(targets_xml, pretty_print=True).decode())
 
     # Estrarre gli ID dei target
     target_ids = []
@@ -37,8 +37,8 @@ try:
         target_id = target.get('id')  # Qui accedi all'attributo 'id' direttamente
         if target_id:
             target_ids.append(target_id)
-        else:
-            print(f'Elemento target senza ID: {etree.tostring(target, pretty_print=True).decode()}')
+      #  else:
+           # print(f'Elemento target senza ID: {etree.tostring(target, pretty_print=True).decode()}')
 
     # Debug: stampare gli ID dei target trovati
     print(f'Target IDs trovati: {target_ids}')

@@ -34,6 +34,11 @@ Sostituisci mock_task_id con l'ID del task reale che ottieni dalla risposta del 
 curl -X GET http://localhost:5000/scan_status/<task_id>
 
 
+se 2 task altrimenti solo task_id1
+curl -X GET "http://localhost:5000/scan_status/my_scan?task_id=task_id1&task_id=task_id2"
+
+
+
 
 
 curl -X POST http://localhost:5000/trigger_scan -H "Content-Type: application/json" -d '{
@@ -56,3 +61,4 @@ come funzioni della libreria invece di file a parte, dare la possibilità tramit
 
 
 
+funziona su un target, vedere come far funzionare su due target, capire il discorso dei thread che moitorano

@@ -33,11 +33,11 @@ class ScanService:
             target_id = self.openvas_client.create_target(target)
             #scan list: cve: 6acd0832-df90-11e4-b9d5-28d24461215b     openvas-default: 08b69003-5fc2-4037-a479-93b440211c73
             task_id = self.openvas_client.create_task(scan_name, config_id="daba56c8-73ec-11df-a475-002264764cea", target_id=target_id, scanner_id="08b69003-5fc2-4037-a479-93b440211c73")
-
+            targets_str = ','.join(targets)
             # Inserimento nel database con stato "In Progress"
             cursor.execute('''
                 INSERT INTO scans (task_id, scan_name, targets, status) VALUES (?, ?, ?, ?)
-            ''', (task_id, scan_name, target, 'In Progress'))
+            ''', (task_id, scan_name, targets_str, 'In Progress'))
             conn.commit()
             
             task_ids.append(task_id)

@@ -4,7 +4,6 @@ from gvm.connections import TLSConnection
 from gvm.protocols.latest import Gmp
 from gvm.errors import GvmError
 from xml.etree import ElementTree as ET
-import xmltodict
 
 
 class OpenVASClient:
@@ -291,3 +290,33 @@ class OpenVASClient:
                 }
         
         return results
+    
+
+    def get_scanners_as_json(self):
+        try:
+            self.ensure_authenticated()
+            # Ottieni la lista degli scanner
+            scanners_response = self.gmp.get_scanners()
+            
+            # Parsing della risposta XML
+            root = ET.fromstring(scanners_response)
+
+            # Trova tutti gli elementi 'scanner'
+            scanners_list = []
+            scanners = root.findall('.//scanner')
+            for scanner in scanners:
+                scanner_id = scanner.attrib.get('id')
+                scanner_name = scanner.find('name').text
+
+                # Aggiungi ogni scanner a una lista di dizionari
+                scanners_list.append({
+                    'id': scanner_id,
+                    'name': scanner_name
+                })
+
+            # Converti la lista di dizionari in un JSON
+            return json.dumps(scanners_list, indent=4)
+
+        except GvmError as e:
+            print(f"Failed to retrieve scanners: {e}")
+            return None
