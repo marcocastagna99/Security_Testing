@@ -9,43 +9,45 @@ from my_library.openvas_client import OpenVASClient
 
 app = Flask(__name__)
 
-# Configurazione per OpenVAS
+# Configuration for OpenVAS
 OPENVAS_HOST = 'localhost'
 OPENVAS_PORT = 9390
 OPENVAS_USERNAME = 'admin'
 OPENVAS_PASSWORD = 'admin'
 
-# Percorso del database
+# Database path
 DB_PATH = 'scans.db'
 
 
-# Funzione per ottenere la connessione al database
+# Function to get a connection to the database
 def get_db_connection():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
 
-# Modifica nel codice di perform_scan_background
+def get_openvas_connection():
+    openvas_client = OpenVASClient(OPENVAS_HOST, OPENVAS_PORT, OPENVAS_USERNAME, OPENVAS_PASSWORD)
+    openvas_client.connect()
+    openvas_client.ensure_authenticated()
+    return openvas_client
+
+# Modification in the perform_scan_background code
 def perform_scan_background(scan_name, targets, result_container):
     try:
         logging.info(f"Starting scan: {scan_name} for targets: {targets}")
 
-        # Crea una nuova istanza di OpenVASClient per ogni thread
-        local_openvas_client = OpenVASClient(OPENVAS_HOST, OPENVAS_PORT, OPENVAS_USERNAME, OPENVAS_PASSWORD)
-        local_openvas_client.connect()
-        
-        # Crea una nuova istanza di ScanService con il client locale
+        # Create a new instance of OpenVASClient for each thread
+        local_openvas_client=get_openvas_connection()
+        # Create a new instance of ScanService with the local client
         local_scan_service = ScanService(local_openvas_client, DB_PATH)
         
-        local_openvas_client.ensure_authenticated()
-        
-        # Crea la scansione e ottieni i task_id
+        # Create the scan and get the task IDs
         task_ids = local_scan_service.perform_scan(scan_name, targets)
         
-        # Memorizza i task_id nel contenitore di risultati
+        # Store the task IDs in the result container
         result_container['task_ids'] = task_ids
         
-        # Avvia il monitoraggio per ogni task_id
+        # Start monitoring for each task ID
         for task_id in task_ids:
             monitoring_thread = threading.Thread(target=monitor_scan_with_new_connection, args=(task_id,))
             monitoring_thread.start()
@@ -55,27 +57,25 @@ def perform_scan_background(scan_name, targets, result_container):
         logging.error(f"Failed to perform scan: {e}")
         result_container['task_ids'] = None
 
-# Funzione per monitorare una scansione con una connessione OpenVAS separata
+# Function to monitor a scan with a separate OpenVAS connection
 def monitor_scan_with_new_connection(task_id):
     try:
         logging.info(f"Starting monitoring for task ID: {task_id}")
         
-        # Creare una nuova istanza di OpenVASClient per il monitoraggio
-        local_openvas_client = OpenVASClient(OPENVAS_HOST, OPENVAS_PORT, OPENVAS_USERNAME, OPENVAS_PASSWORD)
-        local_openvas_client.connect()
-        local_openvas_client.ensure_authenticated()
+        # Create a new instance of OpenVASClient for monitoring
+        local_openvas_client = get_openvas_connection()
         
-        # Creare una nuova istanza di ScanService con il client locale
+        # Create a new instance of ScanService with the local client
         local_scan_service = ScanService(local_openvas_client, DB_PATH)
         
-        # Monitorare il task
+        # Monitor the task
         local_scan_service.monitor_scan(task_id)
         
         logging.info(f"Monitoring completed for task ID: {task_id}")
     except Exception as e:
         logging.error(f"Error monitoring task ID {task_id}: {e}")
 
-# POST per avviare la scansione
+# POST to trigger the scan
 @app.route('/trigger_scan', methods=['POST'])
 def trigger_scan():
     data = request.json
@@ -86,23 +86,23 @@ def trigger_scan():
     if not scan_name or not targets:
         return jsonify({"error": "Missing scan_name or targets in request body"}), 400
 
-    # Usando un threading.Event per sincronizzare il risultato dei task_id
+    # Using a threading.Event to synchronize the result of task IDs
     task_id_event = threading.Event()
     task_id_container = {'task_ids': None}
     
     def perform_scan_with_event(scan_name, targets):
         perform_scan_background(scan_name, targets, task_id_container)
-        task_id_event.set()  # Segnala che i task_id sono pronti
+        task_id_event.set()  # Signal that the task IDs are ready
 
     scan_thread = threading.Thread(target=perform_scan_with_event, args=(scan_name, targets))
     scan_thread.start()
     
-    # Attendere che i task_id siano disponibili
+    # Wait for the task IDs to become available
     task_id_event.wait()
     
     return jsonify({"message": "Scan started", "task_ids": task_id_container['task_ids']}), 202
 
-#get to obtain information about the scan status
+# GET to obtain information about the scan status
 @app.route('/scan_status/<scan_name>', methods=['GET'])
 def scan_status(scan_name):
 
@@ -129,7 +129,7 @@ def scan_status(scan_name):
     all_in_progress = all(row['result'] is None for row in rows)
 
     if all_in_progress:
-        # Crea una lista di risultati in corso per ogni task
+        # Create a list of in-progress results for each task
         in_progress_tasks = []
         for row in rows:
             task_id, targets, status, result, result_summary = row
@@ -145,19 +145,19 @@ def scan_status(scan_name):
         
         return jsonify({"tasks": in_progress_tasks}), 200
 
-    # Aggregare i risultati e i riassunti
+    # Aggregate the results and summaries
     combined_results = []
     combined_summary = []
 
     for row in rows:
         task_id, targets, status, result, result_summary = row
         
-        # Aggiungi i dettagli del risultato e il riassunto ai risultati combinati
+        # Add the result details and summary to the combined results
         if result is not None:
             combined_results.append(json.loads(result))
             combined_summary.append(json.loads(result_summary))
         else:
-            # Se ci sono task ancora in corso, includili nei risultati aggregati
+            # If there are still tasks in progress, include them in the aggregated results
             in_progress_tasks = {
                 "scan_name": scan_name,
                 "task_id": task_id,
@@ -167,7 +167,7 @@ def scan_status(scan_name):
             }
             combined_results.append(in_progress_tasks)
     
-    # Riassumi i risultati combinati
+    # Summarize the combined results
     final_results = combine_results(combined_results)
     final_summary = combine_summaries(combined_summary)
 
@@ -175,11 +175,12 @@ def scan_status(scan_name):
     
     return jsonify({
         "scan_name": scan_name,
-        "targets": targets.split(","), # I target sono gli stessi per tutti i task
+        "targets": targets.split(","),  # The targets are the same for all tasks
         "status": "Completed",
         "result_details": final_results,
         "result_summary": final_summary
     })
+
 def combine_results(results):
     combined = []
     for result in results:
@@ -199,6 +200,50 @@ def combine_summaries(summaries):
     return combined
 
 
+@app.route('/openvas_targets', methods=['GET'])
+def openvas_targets():
+    try:
+        openvas_client = get_openvas_connection()
+        targets = openvas_client.get_openvas_targets()
+        if not targets:
+            return jsonify({"message": "No targets found in OpenVAS"}), 404
+
+        return jsonify({"targets": targets}), 200
+
+    except Exception as e:
+        logging.error(f"Error when retrieving targets from OpenVAS: {e}")
+        return jsonify({"error": "Failed to retrieve targets from OpenVAS"}), 500
+    
+
+@app.route('/delete_targets', methods=['POST'])
+def delete_targets():
+    openvas_client = get_openvas_connection()
+    data = request.get_json()
+    target_ids = data.get('target_ids', [])
+
+    if not isinstance(target_ids, list):
+        return jsonify({"error": "Invalid input format. 'target_ids' should be a list."}), 400
+
+    try:
+        openvas_client.delete_targets(target_ids)
+        return jsonify({"message": "Targets deleted successfully."}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/scanners', methods=['GET'])
+def get_scanners():
+    try:
+        openvas_client = get_openvas_connection()
+        # Richiama la funzione per ottenere la lista degli scanner in formato JSON
+        scanners_json = openvas_client.get_scanners_as_json()
+        
+        if scanners_json:
+            return scanners_json, 200
+        else:
+            return jsonify({"error": "Failed to retrieve scanners"}), 500
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)

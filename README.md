@@ -31,11 +31,37 @@ curl -X POST http://127.0.0.1:5000/trigger_scan -H "Content-Type: application/js
 
 recupero i resultati
 Sostituisci mock_task_id con l'ID del task reale che ottieni dalla risposta del primo comando
-curl -X GET http://localhost:5000/scan_status/<task_id>
+curl -X GET http://localhost:5000/scan_status/scan_name?task_id=taskid1
 
+esempio  (%20 per lo spazio)
 
-se 2 task altrimenti solo task_id1
+curl -X GET "http://localhost:5000/scan_status/DVWA%20Scan?task_id=498b6fe9-6f54-41
+f6-ace7-2e5585f24c11"
+
+se 2 task 
 curl -X GET "http://localhost:5000/scan_status/My_Scan?task_id=task_id1&task_id=task_id2"
+
+
+vedere i targets
+
+curl -X GET http://localhost:5000/openvas_targets
+
+
+eliminare i targets
+curl -X POST http://localhost:5000/delete_targets \
+-H "Content-Type: application/json" \
+-d '{"target_ids": ["12345", "67890", "112233"]}'
+
+esempio: 
+curl -X POST http://localhost:5000/delete_targets \
+-H "Content-Type: application/json" \
+-d '{"target_ids": ["733f243c-cac4-42c5-8cdb-857c7b9e50d2", "136820aa-c2a7-47fd-ba99-33478af055b5"]}'
+
+
+vedere gli scanner disponibili su openVas:
+
+curl -X GET http://localhost:5000/scanners
+
 
 
 
@@ -61,4 +87,4 @@ come funzioni della libreria invece di file a parte, dare la possibilità tramit
 
 
 
-funziona su un target, vedere come far funzionare su due target, capire il discorso dei thread che moitorano
+funziona su un target, vedere come far funzionare su due target, capire il discorso dei thread che moitorano  (fatto)

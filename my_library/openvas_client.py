@@ -320,3 +320,62 @@ class OpenVASClient:
         except GvmError as e:
             print(f"Failed to retrieve scanners: {e}")
             return None
+
+
+    def get_openvas_targets(self):
+        try:
+            # Ensure that authentication has been completed
+            self.ensure_authenticated()
+
+            # Get the XML of targets from OpenVAS
+            targets_response = self.gmp.get_targets()
+            targets_xml = ET.fromstring(targets_response)
+
+            # Initialize the list of targets
+            targets_list = []
+
+            # Loop through all the targets in the XML
+            for target in targets_xml.findall('.//target'):
+                target_id = target.get('id')  # Access the 'id' attribute
+                
+                if target_id is not None:
+                    targets_list.append({
+                        "id": target_id,
+                        # Uncomment the line below to include the target's name
+                        # "name": target.findtext('name')
+                    })
+
+            return targets_list
+
+        except Exception as e:
+            raise Exception(f"Error retrieving targets from OpenVAS: {e}")
+        
+    def delete_targets(self, target_ids):
+        try:
+            self.ensure_authenticated()
+            
+            tasks_response = self.gmp.get_tasks()  
+            root = ET.fromstring(tasks_response)
+            
+            all_tasks = []
+            for task in root.findall('.//task'):
+                task_id = task.get('id')
+                target_id = task.find('.//target').get('id')
+                all_tasks.append({'id': task_id, 'target': target_id})
+
+            # Filtra i task da eliminare in base ai target_ids forniti
+            tasks_to_delete = [task for task in all_tasks if task['target'] in target_ids]
+
+            # Elimina i task associati ai target
+            for task in tasks_to_delete:
+                self.gmp.delete_task(task['id'])
+                print(f"Task {task['id']} eliminated successfully.")
+
+            # Elimina i target
+            for target_id in target_ids:
+                self.gmp.delete_target(target_id)
+                print(f"Target {target_id} eliminated successfully.")
+
+        except GvmError as e:
+            print(f"Error while deleting targets: {e}")
+            raise
