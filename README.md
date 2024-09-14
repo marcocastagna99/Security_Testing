@@ -18,7 +18,7 @@ To run this project, you need to install:
    git clone https://github.com/your-repo/openvas-automation.git
    cd openvas-automation
 
-2. Create and activate a virtual environment:
+2. (optional)Create and activate a virtual environment:
 
 python3 -m venv venv
 source venv/bin/activate
@@ -183,7 +183,7 @@ all_targets = client.get_openvas_targets()
 
 delete_targets(target_ids): Deletes the specified targets from OpenVAS.
 
-client.delete_targets(["target_id1", "target_id2"])
+client.delete_targets(target_ids)
 
 
 Conclusion

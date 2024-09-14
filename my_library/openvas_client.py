@@ -1,4 +1,3 @@
-import re
 from flask import json
 from gvm.connections import TLSConnection
 from gvm.protocols.latest import Gmp

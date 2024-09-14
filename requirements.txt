@@ -1,0 +1,4 @@
+Flask==2.1.1
+sqlite3==0.0.1
+gvm-tools==21.8.0
+lxml==4.6.3
