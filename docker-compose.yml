@@ -1,0 +1,37 @@
+version: '3'
+
+services:
+  app:
+    build: .
+    ports:
+      - "5000:5000"
+    environment:
+      - FLASK_ENV=development
+    volumes:
+      - .:/app
+    depends_on:
+      - openvas
+      - web-dvwa
+      - webgoat
+
+  openvas:
+    image: securecompliance/gvm:11.0.1-r3
+    ports:
+      - "443:443"
+      - "9390:9390"
+      - "80:80"
+    volumes:
+      - openvas-data:/var/lib/openvas
+
+  web-dvwa:
+    image: vulnerables/web-dvwa
+    ports:
+      - "8080:80"
+
+  webgoat:
+    image: webgoat/webgoat-8.0
+    ports:
+      - "8081:8080"
+
+volumes:
+  openvas-data:
