@@ -138,7 +138,7 @@ You can interact with the API using curl requests or tools like Postman.
    -H "Content-Type: application/json" \
    -d '{
      "scan_name": "DVWA Scan",
-     "targets": ["172.17.0.3"]
+     "targets": ["172.24.0.2"]
    }'
    ```
 
@@ -149,7 +149,7 @@ You can interact with the API using curl requests or tools like Postman.
    -H "Content-Type: application/json" \
    -d '{
      "scan_name": "DVWA Scan",
-     "targets": ["172.17.0.3"]
+     "targets": ["172.24.0.2"]
    }'
    ```
 
@@ -203,7 +203,7 @@ You can interact with the API using curl requests or tools like Postman.
    -H "Content-Type: application/json" \
    -d '{
      "scan_name": "My_Scan",
-     "targets": ["172.17.0.3", "172.17.0.4"]
+     "targets": ["172.24.0.2", "172.24.0.3"]
    }'
    ```
 
@@ -337,7 +337,7 @@ When you trigger a scan with the `curl` command and receive the response `{"mess
      -H "Content-Type: application/json" \
      -d '{
        "scan_name": "DVWA Scan",
-       "targets": ["172.17.0.3"]
+       "targets": ["172.24.0.2"]
      }'
      ```
 
