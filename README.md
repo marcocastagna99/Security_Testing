@@ -56,9 +56,9 @@ To run this project, you need to install:
    - `http://172.30.56.250:5000`
   
 
-## Docker Build and Run Instructions
+## Docker Build and Run Instructions   (alternative run)
 
-This project uses Docker and Docker Compose to create an isolated development environment that includes all necessary services for vulnerability scanning and testing. The `docker-compose.yml` file is configured to set up the application, OpenVAS, and several vulnerable containers for testing.
+This project also uses Docker and Docker Compose to create an isolated development environment that includes all necessary services for vulnerability scanning and testing. The `docker-compose.yml` file is configured to set up the application, OpenVAS, and several vulnerable containers for testing.
 
 ### Requirements
 
@@ -129,16 +129,20 @@ Feel free to adjust the instructions based on your specific needs or any additio
 
 You can interact with the API using curl requests or tools like Postman.
 
+N.B
+It's important knew the ip of the target before start the test
+
 1. **Start a Scan**
 
    Start a new scan on one or more specified targets:
+  
 
    ```bash
    curl -X POST http://127.0.0.1:5000/trigger_scan \
    -H "Content-Type: application/json" \
    -d '{
      "scan_name": "DVWA Scan",
-     "targets": ["172.24.0.2"]
+     "targets": ["172.20.0.2"]
    }'
    ```
 
@@ -149,7 +153,7 @@ You can interact with the API using curl requests or tools like Postman.
    -H "Content-Type: application/json" \
    -d '{
      "scan_name": "DVWA Scan",
-     "targets": ["172.24.0.2"]
+     "targets": ["172.20.0.2"]
    }'
    ```
 
