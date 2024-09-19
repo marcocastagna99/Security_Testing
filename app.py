@@ -1,3 +1,4 @@
+import os
 from flask import Flask, json, request, jsonify
 import threading
 import logging
@@ -9,11 +10,22 @@ from my_library.openvas_client import OpenVASClient
 
 app = Flask(__name__)
 
-# Configuration for OpenVAS
+
+# Configuration for OpenVAS using environment variables
+
+#if you are using docker-compose, use this OpenVAS configuration 
+OPENVAS_HOST = os.getenv('OPENVAS_HOST', 'openvas')  # Docker service name as default
+OPENVAS_PORT = int(os.getenv('OPENVAS_PORT', 9390))
+OPENVAS_USERNAME = os.getenv('OPENVAS_USERNAME', 'admin')
+OPENVAS_PASSWORD = os.getenv('OPENVAS_PASSWORD', 'admin')
+
+"""
+ #If you test in local machine, use this configuration
 OPENVAS_HOST = 'localhost'
 OPENVAS_PORT = 9390
 OPENVAS_USERNAME = 'admin'
-OPENVAS_PASSWORD = 'admin'
+OPENVAS_PASSWORD = 'admin'"""
+
 
 # Database path
 DB_PATH = 'scans.db'

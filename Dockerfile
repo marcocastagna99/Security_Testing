@@ -7,6 +7,7 @@ RUN apt-get update && apt-get install -y \
     curl \
     libssl-dev \
     ca-certificates \
+    iputils-ping \
     && rm -rf /var/lib/apt/lists/*
 
 # Scarica e installa OpenSSL 1.1.1k
@@ -24,7 +25,7 @@ ENV LD_LIBRARY_PATH=/usr/local/openssl-1.1.1k/lib
 ENV PATH="/usr/local/openssl-1.1.1k/bin:${PATH}"
 
 # Installa le dipendenze Python definite in requirements.txt
-COPY requirements.txt .
+COPY requirements.txt . 
 RUN pip install -r requirements.txt
 
 # Copia l'applicazione nella directory di lavoro

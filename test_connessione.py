@@ -1,8 +1,18 @@
 import ssl
 import socket
+import os
+
+
 
 hostname = 'localhost'
 port = 9390
+
+
+""""
+hostname = os.getenv('OPENVAS_HOST', 'openvas')  # Docker service name as default
+port = int(os.getenv('OPENVAS_PORT', 9390))"""
+
+
 
 # Creazione di un contesto SSL
 context = ssl.create_default_context()

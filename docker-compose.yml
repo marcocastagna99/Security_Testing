@@ -7,12 +7,16 @@ services:
       - "5000:5000"
     environment:
       - FLASK_ENV=development
+      - OPENVAS_HOST=openvas
+      - OPENVAS_PORT=9390
     volumes:
       - .:/app
     depends_on:
       - openvas
       - web-dvwa
       - webgoat
+    networks:
+      - mynetwork
 
   openvas:
     image: securecompliance/gvm:11.0.1-r3
@@ -22,16 +26,26 @@ services:
       - "80:80"
     volumes:
       - openvas-data:/var/lib/openvas
+    networks:
+      - mynetwork
 
   web-dvwa:
     image: vulnerables/web-dvwa
     ports:
       - "8080:80"
+    networks:
+      - mynetwork
 
   webgoat:
     image: webgoat/webgoat-8.0
     ports:
       - "8081:8080"
+    networks:
+      - mynetwork
 
 volumes:
   openvas-data:
+
+networks:
+  mynetwork:
+    driver: bridge

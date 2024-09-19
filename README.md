@@ -304,7 +304,6 @@ This class handles all interactions with OpenVAS.
   ```
   Here’s how you can update your README with a "Common Errors" section in English:
 
-Ecco la sezione aggiornata del README con la spiegazione per i problemi comuni:
 
 
 ## Common Errors
@@ -345,7 +344,7 @@ When you trigger a scan with the `curl` command and receive the response `{"mess
      }'
      ```
 
-### Error: `Error when retrieving targets from OpenVAS: [Errno 111] Connection refused`
+### Error: `Error when retrieving targets from OpenVAS: SSL Error: TLS/SSL connection has been closed (EOF) (_ssl.c:1131)`
 
 **Issue:**
 This error indicates that the Flask application is unable to connect to the OpenVAS service. This usually happens when OpenVAS is still starting up or has not yet finished configuring.
