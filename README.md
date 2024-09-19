@@ -54,6 +54,23 @@ To run this project, you need to install:
 
    - `http://127.0.0.1:5000`
    - `http://172.30.56.250:5000`
+
+## Configuration
+
+If you are testing on your local machine (without Docker Compose), you should update the `app.py` configuration to use `localhost`. Specifically, you need to:
+
+1. **Open `app.py`** and locate the configuration section where OpenVAS connection details are specified.
+
+2. **Update the configuration** for local testing by using the following settings:
+
+   ```python
+   # If you are testing on a local machine, use this configuration
+   OPENVAS_HOST = 'localhost'
+   OPENVAS_PORT = 9390
+   OPENVAS_USERNAME = 'admin'
+   OPENVAS_PASSWORD = 'admin'
+  ```
+
   
 
 ## Docker Build and Run Instructions   (alternative run)
