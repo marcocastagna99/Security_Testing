@@ -222,7 +222,7 @@ It's important knew the ip of the target before start the test
    -H "Content-Type: application/json" \
    -d '{
      "scan_name": "My_Scan",
-     "targets": ["172.24.0.2", "172.24.0.3"]
+     "targets": ["172.20.0.2", "172.20.0.3"]
    }'
    ```
 

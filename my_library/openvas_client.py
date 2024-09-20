@@ -378,3 +378,19 @@ class OpenVASClient:
         except GvmError as e:
             print(f"Error while deleting targets: {e}")
             raise
+
+    def disconnect(self):
+        """Disconnect from the server and close the connection."""
+        try:
+            if self.gmp:
+                self.gmp.logout()
+                print("Logged out from GMP.")
+
+            if self.connection:
+                self.connection.disconnect()  # Chiude la connessione TLS
+                print("Disconnected from the TLS connection.")
+        except Exception as e:
+            print(f"Error during disconnection: {e}")
+        finally:
+            self.gmp = None  # Pulisci la connessione GMP
+            self.connection = None  # Pulisci la connessione TLS
