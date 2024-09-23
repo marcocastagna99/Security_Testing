@@ -12,7 +12,7 @@ app = Flask(__name__)
 
 
 # Configuration for OpenVAS using environment variables
-"""S
+
 #if you are using docker-compose, use this OpenVAS configuration 
 OPENVAS_HOST = os.getenv('OPENVAS_HOST', 'openvas')  # Docker service name as default
 OPENVAS_PORT = int(os.getenv('OPENVAS_PORT', 9390))
@@ -24,7 +24,7 @@ OPENVAS_PASSWORD = os.getenv('OPENVAS_PASSWORD', 'admin')
 OPENVAS_HOST = 'localhost'
 OPENVAS_PORT = 9390
 OPENVAS_USERNAME = 'admin'
-OPENVAS_PASSWORD = 'admin'
+OPENVAS_PASSWORD = 'admin'"""
 
 
 # Database path
@@ -88,7 +88,7 @@ def monitor_scan_with_new_connection(task_id):
         logging.info(f"Monitoring completed for task ID: {task_id}")
     except Exception as e:
         logging.error(f"Error monitoring task ID {task_id}: {e}")
-        
+
 # POST to trigger the scan
 @app.route('/trigger_scan', methods=['POST'])
 def trigger_scan():
