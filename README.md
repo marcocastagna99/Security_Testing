@@ -174,7 +174,7 @@ It's important knew the ip of the target before start the test
 
 2. **Check the Scan Status**
 
-   To retrieve the scan status, replace DVWA%20Scan with the real scan name and add the real task ID obtained from the response of the first command as a parameter of the request:
+   To retrieve the scan results or status, replace DVWA%20Scan with the real scan name and add the real task ID obtained from the response of the first command as a parameter of the request:
    ```bash
    curl -X GET "http://localhost:5000/scan_status/DVWA%20Scan?task_id=498b6fe9-6f54-41f6-ace7-2e5585f24c11"
    ```
