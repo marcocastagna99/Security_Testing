@@ -12,7 +12,7 @@ app = Flask(__name__)
 
 
 # Configuration for OpenVAS using environment variables
-
+"""S
 #if you are using docker-compose, use this OpenVAS configuration 
 OPENVAS_HOST = os.getenv('OPENVAS_HOST', 'openvas')  # Docker service name as default
 OPENVAS_PORT = int(os.getenv('OPENVAS_PORT', 9390))
@@ -24,7 +24,7 @@ OPENVAS_PASSWORD = os.getenv('OPENVAS_PASSWORD', 'admin')
 OPENVAS_HOST = 'localhost'
 OPENVAS_PORT = 9390
 OPENVAS_USERNAME = 'admin'
-OPENVAS_PASSWORD = 'admin'"""
+OPENVAS_PASSWORD = 'admin'
 
 
 # Database path
@@ -88,9 +88,7 @@ def monitor_scan_with_new_connection(task_id):
         logging.info(f"Monitoring completed for task ID: {task_id}")
     except Exception as e:
         logging.error(f"Error monitoring task ID {task_id}: {e}")
-    finally:
-        local_openvas_client.disconnect()
-
+        
 # POST to trigger the scan
 @app.route('/trigger_scan', methods=['POST'])
 def trigger_scan():
@@ -221,6 +219,7 @@ def openvas_targets():
     try:
         openvas_client = get_openvas_connection()
         targets = openvas_client.get_openvas_targets()
+        
         if not targets:
             return jsonify({"message": "No targets found in OpenVAS"}), 404
 
@@ -229,6 +228,8 @@ def openvas_targets():
     except Exception as e:
         logging.error(f"Error when retrieving targets from OpenVAS: {e}")
         return jsonify({"error": "Failed to retrieve targets from OpenVAS"}), 500
+    finally:
+        openvas_client.disconnect()
     
 
 @app.route('/delete_targets', methods=['POST'])
@@ -245,6 +246,8 @@ def delete_targets():
         return jsonify({"message": "Targets deleted successfully."}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    finally:
+        openvas_client.disconnect()
 
 
 @app.route('/scanners', methods=['GET'])
@@ -260,6 +263,8 @@ def get_scanners():
             return jsonify({"error": "Failed to retrieve scanners"}), 500
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    finally:
+        openvas_client.disconnect()
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)

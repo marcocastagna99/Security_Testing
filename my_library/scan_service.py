@@ -75,6 +75,7 @@ class ScanService:
             
             conn.commit()
             conn.close()
+            self.openvas_client.disconnect()
             
             logging.info(f"Scan completed with task ID: {task_id}")
         except Exception as e:
