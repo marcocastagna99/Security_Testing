@@ -88,6 +88,8 @@ def monitor_scan_with_new_connection(task_id):
         logging.info(f"Monitoring completed for task ID: {task_id}")
     except Exception as e:
         logging.error(f"Error monitoring task ID {task_id}: {e}")
+    finally:
+        local_openvas_client.disconnect()
 
 # POST to trigger the scan
 @app.route('/trigger_scan', methods=['POST'])

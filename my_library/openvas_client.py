@@ -383,8 +383,12 @@ class OpenVASClient:
         """Disconnect from the server and close the connection."""
         try:
             if self.gmp:
-                self.gmp.logout()
-                print("Logged out from GMP.")
+                # Verifica se la disconnessione da GMP è necessaria
+                try:
+                    self.gmp.logout()
+                    print("Logged out from GMP.")
+                except Exception as logout_error:
+                    print(f"Error during GMP logout: {logout_error}")
 
             if self.connection:
                 self.connection.disconnect()  # Chiude la connessione TLS
