@@ -1,3 +1,4 @@
+import logging
 from flask import json
 from gvm.connections import TLSConnection
 from gvm.protocols.latest import Gmp
@@ -382,17 +383,9 @@ class OpenVASClient:
     def disconnect(self):
         """Disconnect from the server and close the connection."""
         try:
-            if self.gmp:
-                # Verifica se la disconnessione da GMP è necessaria
-                try:
-                    self.gmp.logout()
-                    print("Logged out from GMP.")
-                except Exception as logout_error:
-                    print(f"Error during GMP logout: {logout_error}")
-
             if self.connection:
                 self.connection.disconnect()  # Chiude la connessione TLS
-                print("Disconnected from the TLS connection.")
+                logging.info("Disconnected from OpenVAS server")
         except Exception as e:
             print(f"Error during disconnection: {e}")
         finally:

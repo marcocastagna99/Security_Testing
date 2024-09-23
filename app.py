@@ -69,7 +69,7 @@ def perform_scan_background(scan_name, targets, result_container):
         logging.error(f"Failed to perform scan: {e}")
         result_container['task_ids'] = None
     finally:
-        local_openvas_client.disconnect() 
+        local_openvas_client.disconnect()
 
 # Function to monitor a scan with a separate OpenVAS connection
 def monitor_scan_with_new_connection(task_id):
@@ -88,8 +88,6 @@ def monitor_scan_with_new_connection(task_id):
         logging.info(f"Monitoring completed for task ID: {task_id}")
     except Exception as e:
         logging.error(f"Error monitoring task ID {task_id}: {e}")
-    finally:
-        local_openvas_client.disconnect()
 
 # POST to trigger the scan
 @app.route('/trigger_scan', methods=['POST'])
