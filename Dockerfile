@@ -10,8 +10,8 @@ RUN apt-get update && apt-get install -y \
     iputils-ping \
     && rm -rf /var/lib/apt/lists/*
 
-# Scarica e installa OpenSSL 1.1.1k
-RUN curl -O https://www.openssl.org/source/openssl-1.1.1k.tar.gz && \
+# Scarica e installa OpenSSL 1.1.1k con l'opzione -L per seguire i redirect
+RUN curl -L -O https://www.openssl.org/source/old/1.1.1/openssl-1.1.1k.tar.gz && \
     tar -xzf openssl-1.1.1k.tar.gz && \
     cd openssl-1.1.1k && \
     ./config --prefix=/usr/local/openssl-1.1.1k --openssldir=/usr/local/openssl-1.1.1k/openssl && \
