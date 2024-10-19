@@ -316,117 +316,117 @@ class OpenVASClient:
                 "a": a
             }
     
-    return results
+        return results
     
 
-def get_scanners_as_json(self):
-    """
-    Retrieves the list of available scanners from OpenVAS and returns the data in JSON format.
-    """
-    try:
-        self.ensure_authenticated()
-        # Get the list of scanners
-        scanners_response = self.gmp.get_scanners()
-        
-        # Parse the XML response
-        root = ET.fromstring(scanners_response)
-
-        # Find all 'scanner' elements
-        scanners_list = []
-        scanners = root.findall('.//scanner')
-        for scanner in scanners:
-            scanner_id = scanner.attrib.get('id')
-            scanner_name = scanner.find('name').text
-
-            # Add each scanner to a list of dictionaries
-            scanners_list.append({
-                'id': scanner_id,
-                'name': scanner_name
-            })
-
-        # Convert the list of dictionaries to JSON
-        return json.dumps(scanners_list, indent=4)
-
-    except GvmError as e:
-        print(f"Failed to retrieve scanners: {e}")
-        return None
-
-
-def get_openvas_targets(self):
-    """
-    Retrieves all configured scan targets from OpenVAS.
-    Returns a list of target IDs.
-    """
-    try:
-        # Ensure that authentication has been completed
-        self.ensure_authenticated()
-
-        # Get the XML of targets from OpenVAS
-        targets_response = self.gmp.get_targets()
-        targets_xml = ET.fromstring(targets_response)
-
-        # Initialize the list of targets
-        targets_list = []
-
-        # Loop through all the targets in the XML
-        for target in targets_xml.findall('.//target'):
-            target_id = target.get('id')  # Access the 'id' attribute
+    def get_scanners_as_json(self):
+        """
+        Retrieves the list of available scanners from OpenVAS and returns the data in JSON format.
+        """
+        try:
+            self.ensure_authenticated()
+            # Get the list of scanners
+            scanners_response = self.gmp.get_scanners()
             
-            if target_id is not None:
-                targets_list.append({
-                    "id": target_id,
-                    # Uncomment the line below to include the target's name
-                    # "name": target.findtext('name')
+            # Parse the XML response
+            root = ET.fromstring(scanners_response)
+
+            # Find all 'scanner' elements
+            scanners_list = []
+            scanners = root.findall('.//scanner')
+            for scanner in scanners:
+                scanner_id = scanner.attrib.get('id')
+                scanner_name = scanner.find('name').text
+
+                # Add each scanner to a list of dictionaries
+                scanners_list.append({
+                    'id': scanner_id,
+                    'name': scanner_name
                 })
 
-        return targets_list
+            # Convert the list of dictionaries to JSON
+            return json.dumps(scanners_list, indent=4)
 
-    except Exception as e:
-        raise Exception(f"Error retrieving targets from OpenVAS: {e}")
-    
-def delete_targets(self, target_ids):
-    """
-    Deletes specified scan targets and associated tasks from OpenVAS.
-    """
-    try:
-        self.ensure_authenticated()
+        except GvmError as e:
+            print(f"Failed to retrieve scanners: {e}")
+            return None
+
+
+    def get_openvas_targets(self):
+        """
+        Retrieves all configured scan targets from OpenVAS.
+        Returns a list of target IDs.
+        """
+        try:
+            # Ensure that authentication has been completed
+            self.ensure_authenticated()
+
+            # Get the XML of targets from OpenVAS
+            targets_response = self.gmp.get_targets()
+            targets_xml = ET.fromstring(targets_response)
+
+            # Initialize the list of targets
+            targets_list = []
+
+            # Loop through all the targets in the XML
+            for target in targets_xml.findall('.//target'):
+                target_id = target.get('id')  # Access the 'id' attribute
+                
+                if target_id is not None:
+                    targets_list.append({
+                        "id": target_id,
+                        # Uncomment the line below to include the target's name
+                        # "name": target.findtext('name')
+                    })
+
+            return targets_list
+
+        except Exception as e:
+            raise Exception(f"Error retrieving targets from OpenVAS: {e}")
         
-        tasks_response = self.gmp.get_tasks()  
-        root = ET.fromstring(tasks_response)
-        
-        all_tasks = []
-        for task in root.findall('.//task'):
-            task_id = task.get('id')
-            target_id = task.find('.//target').get('id')
-            all_tasks.append({'id': task_id, 'target': target_id})
+    def delete_targets(self, target_ids):
+        """
+        Deletes specified scan targets and associated tasks from OpenVAS.
+        """
+        try:
+            self.ensure_authenticated()
+            
+            tasks_response = self.gmp.get_tasks()  
+            root = ET.fromstring(tasks_response)
+            
+            all_tasks = []
+            for task in root.findall('.//task'):
+                task_id = task.get('id')
+                target_id = task.find('.//target').get('id')
+                all_tasks.append({'id': task_id, 'target': target_id})
 
-        # Filter the tasks to be deleted based on the provided target_ids
-        tasks_to_delete = [task for task in all_tasks if task['target'] in target_ids]
+            # Filter the tasks to be deleted based on the provided target_ids
+            tasks_to_delete = [task for task in all_tasks if task['target'] in target_ids]
 
-        # Delete the tasks associated with the targets
-        for task in tasks_to_delete:
-            self.gmp.delete_task(task['id'])
-            print(f"Task {task['id']} eliminated successfully.")
+            # Delete the tasks associated with the targets
+            for task in tasks_to_delete:
+                self.gmp.delete_task(task['id'])
+                print(f"Task {task['id']} eliminated successfully.")
 
-        # Delete the targets
-        for target_id in target_ids:
-            self.gmp.delete_target(target_id)
-            print(f"Target {target_id} eliminated successfully.")
+            # Delete the targets
+            for target_id in target_ids:
+                self.gmp.delete_target(target_id)
+                print(f"Target {target_id} eliminated successfully.")
 
-    except GvmError as e:
-        print(f"Error while deleting targets: {e}")
-        raise
+        except GvmError as e:
+            print(f"Error while deleting targets: {e}")
+            raise
 
-def disconnect(self):
-    """
-    Disconnects from the OpenVAS server and closes the TLS connection.
-    """
-    try:
-        if self.connection:
-            self.connection.disconnect()  # Close the TLS connection
-            logging.info("Disconnected from OpenVAS server")
-    except Exception as e:
-        print(f"Error during disconnection: {e}")
-    finally:
-        self.gmp = None  # Clear the GMP connection
-        self.connection = None  # Clear the TLS connection
+    def disconnect(self):
+        """
+        Disconnects from the OpenVAS server and closes the TLS connection.
+        """
+        try:
+            if self.connection:
+                self.connection.disconnect()  # Close the TLS connection
+                logging.info("Disconnected from OpenVAS server")
+        except Exception as e:
+            print(f"Error during disconnection: {e}")
+        finally:
+            self.gmp = None  # Clear the GMP connection
+            self.connection = None  # Clear the TLS connection

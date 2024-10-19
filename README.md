@@ -171,6 +171,20 @@ It's important knew the ip of the target before start the test
      "targets": ["172.20.0.2"]
    }'
    ```
+   
+ **Important:** Once the scan is initiated, make sure to keep track of the task IDs associated with the targets. These IDs will be returned in the response, like so:
+
+   ```json
+   {
+     "message": "Scan started",
+     "task_ids": [
+       "07f47596-f5e4-4b92-8d1f-a25f31661772",
+       "b0db9d3c-1d17-41c7-b466-e60fa327c6fc"
+     ]
+   }
+   ```
+
+
 
 2. **Check the Scan Status**
 
