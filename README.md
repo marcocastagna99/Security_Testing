@@ -1,6 +1,6 @@
 
 ---
-# OpenVAS Automation with Python
+# OpenVAS Vulnerability Assessment Automation with Python: A RESTful Web Server for Security Scans
 
 This project provides a RESTful interface to interact with OpenVAS, allowing you to manage vulnerability scans, view results, and administer targets and scanners. It also includes a Python client to interact with OpenVAS through GVM. The project is designed to be easy to use, build, and replicate.
 
